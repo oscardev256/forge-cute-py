@@ -1,0 +1,18 @@
+suites:
+  smoke:
+    warmup: 10
+    iterations: 50
+    cases:
+      - op: copy_transpose
+        shape: [1024, 1024]
+        dtype: float16
+        tile: 16
+      - op: reduce_sum
+        shape: [1024, 1024]
+        dtype: float16
+        dim: -1
+        variant: shfl
+      - op: softmax_online
+        shape: [256, 2048]
+        dtype: float16
+        dim: -1
