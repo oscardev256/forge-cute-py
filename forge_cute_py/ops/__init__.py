@@ -1,11 +1,15 @@
 import torch
 
-from forge_cute_py.kernels import copy_transpose_cute
-from forge_cute_py.ref import reduce_sum_ref, softmax_online_ref
+from forge_cute_py.ops.copy_transpose import _copy_transpose
 
+# from forge_cute_py.ops.reduce_sum import reduce_sum
+# from forge_cute_py.ops.softmax_online import softmax_online
+# Using reference stubs for now
+from forge_cute_py.ref import reduce_sum as reduce_sum_ref
+from forge_cute_py.ref import softmax_online as softmax_online_ref
 
 _LIB = torch.library.Library("forge_cute_py", "DEF")
-_LIB.define("copy_transpose(Tensor x, int tile=16) -> Tensor")
+_LIB.define("copy_transpose(Tensor x, int tile_size=16) -> Tensor")
 _LIB.define("reduce_sum(Tensor x, int dim=-1, str variant='shfl') -> Tensor")
 _LIB.define("softmax_online(Tensor x, int dim=-1) -> Tensor")
 
@@ -16,11 +20,8 @@ def _require_cuda(x: torch.Tensor) -> None:
 
 
 @torch.library.impl(_LIB, "copy_transpose", "CUDA")
-def _copy_transpose_cuda(x: torch.Tensor, tile: int = 16) -> torch.Tensor:
-    _require_cuda(x)
-    if x.ndim != 2:
-        raise ValueError("copy_transpose expects a 2D tensor")
-    return copy_transpose_cute(x, tile=tile)
+def _copy_transpose_cuda(x: torch.Tensor, tile_size: int = 16) -> torch.Tensor:
+    return _copy_transpose(x, tile_size=tile_size)
 
 
 @torch.library.impl(_LIB, "reduce_sum", "CUDA")
@@ -43,8 +44,8 @@ def _softmax_online_cuda(x: torch.Tensor, dim: int = -1) -> torch.Tensor:
     return softmax_online_ref(x, dim=dim)
 
 
-def copy_transpose(x: torch.Tensor, tile: int = 16) -> torch.Tensor:
-    return torch.ops.forge_cute_py.copy_transpose(x, tile)
+def copy_transpose(x: torch.Tensor, tile_size: int = 16) -> torch.Tensor:
+    return torch.ops.forge_cute_py.copy_transpose(x, tile_size)
 
 
 def reduce_sum(x: torch.Tensor, dim: int = -1, variant: str = "shfl") -> torch.Tensor:
