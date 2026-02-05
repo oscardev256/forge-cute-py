@@ -40,7 +40,7 @@ class ReduceSum:
             stream: CUDA stream
         """
         M, N = input.shape
-        
+
         if dim == 1 or dim == -1:
             # Reduce along columns: (M, N) -> (M,)
             grid_size = cute.ceil_div(M, 1)
@@ -69,7 +69,7 @@ class ReduceSum:
         """
         Reduce columns: sum along axis 1.
         Each block handles one row, threads cooperatively reduce.
-        
+
         Strategy:
         1. Each thread loads elements from its row
         2. Sequential addressing reduction in shared memory
@@ -78,30 +78,30 @@ class ReduceSum:
         """
         tidx = cute.arch.thread_idx()[0]
         bidx = cute.arch.block_idx()[0]
-        
+
         M, N = input.shape
         block_size = const_expr(self.block_size)
-        
+
         if bidx >= M:
             return
-        
+
         # Allocate shared memory for reduction
         smem = cutlass.utils.SmemAllocator()
         sdata = smem.allocate_array(self.dtype, block_size, byte_alignment=16)
-        
+
         # Initialize accumulator
         sum_val = self.dtype(0)
-        
+
         # Each thread accumulates multiple elements
         col = tidx
         while col < N:
             sum_val = sum_val + input[bidx, col]
             col = col + block_size
-        
+
         # Store thread's partial sum to shared memory
         sdata[tidx] = sum_val
         cute.arch.sync_threads()
-        
+
         # Parallel reduction in shared memory (sequential addressing)
         stride = block_size // 2
         while stride > 32:
@@ -109,11 +109,11 @@ class ReduceSum:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + stride]
             cute.arch.sync_threads()
             stride = stride // 2
-        
+
         # Final warp reduction (no sync needed within warp)
         if tidx < 32:
             # Manually unroll last 6 iterations for warp
-            #if block_size >= 64:
+            # if block_size >= 64:
             #    sdata[tidx] = sdata[tidx] + sdata[tidx + 32]
             if tidx < 16:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 16]
@@ -125,7 +125,7 @@ class ReduceSum:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 2]
             if tidx < 1:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 1]
-        
+
         # Thread 0 writes final result
         if tidx == 0:
             output[bidx] = sdata[0]
@@ -142,30 +142,30 @@ class ReduceSum:
         """
         tidx = cute.arch.thread_idx()[0]
         bidx = cute.arch.block_idx()[0]
-        
+
         M, N = input.shape
         block_size = const_expr(self.block_size)
-        
+
         if bidx >= N:
             return
-        
+
         # Allocate shared memory for reduction
         smem = cutlass.utils.SmemAllocator()
         sdata = smem.allocate_array(self.dtype, block_size, byte_alignment=16)
-        
+
         # Initialize accumulator
         sum_val = self.dtype(0)
-        
+
         # Each thread accumulates multiple elements
         row = tidx
         while row < M:
             sum_val = sum_val + input[row, bidx]
             row = row + block_size
-        
+
         # Store thread's partial sum to shared memory
         sdata[tidx] = sum_val
         cute.arch.sync_threads()
-        
+
         # Parallel reduction in shared memory (sequential addressing)
         stride = block_size // 2
         while stride > 32:
@@ -173,11 +173,11 @@ class ReduceSum:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + stride]
             cute.arch.sync_threads()
             stride = stride // 2
-        
+
         # Final warp reduction (no sync needed within warp)
         if tidx < 32:
             # Manually unroll last 6 iterations for warp
-            #if block_size >= 64:
+            # if block_size >= 64:
             #    sdata[tidx] = sdata[tidx] + sdata[tidx + 32]
             if tidx < 16:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 16]
@@ -189,7 +189,7 @@ class ReduceSum:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 2]
             if tidx < 1:
                 sdata[tidx] = sdata[tidx] + sdata[tidx + 1]
-        
+
         # Thread 0 writes final result
         if tidx == 0:
             output[bidx] = sdata[0]
